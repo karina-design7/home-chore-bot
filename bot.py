@@ -17,12 +17,12 @@ PEOPLE = {
 }
 
 TASKS = {
-    "kitchen": {"person": "ilyas",  "name": "Помыл кухню",        "emoji": "🍳", "pts": 3},
-    "dishes":  {"person": "ilyas",  "name": "Помыл посуду",        "emoji": "🍽", "pts": 2},
-    "trash":   {"person": "azhar",  "name": "Вынес мусор",         "emoji": "🗑", "pts": 2},
-    "shoes":   {"person": "azhar",  "name": "Убрал обувь",         "emoji": "👟", "pts": 1},
-    "toys":    {"person": "karina", "name": "Убрала игрушки",      "emoji": "🧸", "pts": 2, "max_per_day": 2},
-    "general": {"person": "karina", "name": "Генеральная уборка",  "emoji": "🧹", "pts": 5},
+    "kitchen": {"name": "Помыл кухню",        "emoji": "🍳", "pts": 3},
+    "dishes":  {"name": "Помыл посуду",        "emoji": "🍽", "pts": 2},
+    "trash":   {"name": "Вынес мусор",         "emoji": "🗑", "pts": 2},
+    "shoes":   {"name": "Убрал обувь",         "emoji": "👟", "pts": 1},
+    "toys":    {"name": "Убрала игрушки",      "emoji": "🧸", "pts": 2, "max_per_day": 2},
+    "general": {"name": "Генеральная уборка",  "emoji": "🧹", "pts": 5},
 }
 
 DATA_FILE = "scores.json"
