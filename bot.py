@@ -14,18 +14,18 @@ logger = logging.getLogger(**name**)
 CHOOSE_NAME = 0
 
 PEOPLE = {
-“ilyas”:  {“name”: “Ильяс”,  “emoji”: “👨”},
-“azhar”:  {“name”: “Ажар”,   “emoji”: “👩”},
-“karina”: {“name”: “Карина”, “emoji”: “👱‍♀️”},
+“ilyas”:  {“name”: “Ilyas”,  “emoji”: “\U0001f468”},
+“azhar”:  {“name”: “Azhar”,  “emoji”: “\U0001f469”},
+“karina”: {“name”: “Karina”, “emoji”: “\U0001f471”},
 }
 
 TASKS = {
-“kitchen”: {“name”: “Помыл(а) кухню”,    “emoji”: “🍳”, “pts”: 3},
-“dishes”:  {“name”: “Помыл(а) посуду”,    “emoji”: “🍽”, “pts”: 2},
-“trash”:   {“name”: “Вынес(ла) мусор”,    “emoji”: “🗑”, “pts”: 2},
-“shoes”:   {“name”: “Убрал(а) обувь”,     “emoji”: “👟”, “pts”: 1},
-“toys”:    {“name”: “Убрал(а) игрушки”,   “emoji”: “🧸”, “pts”: 2, “max_per_day”: 2},
-“general”: {“name”: “Генеральная уборка”, “emoji”: “🧹”, “pts”: 5},
+“kitchen”: {“name”: “Pomyl kukhnyu”,      “emoji”: “\U0001f373”, “pts”: 3},
+“dishes”:  {“name”: “Pomyl posudu”,        “emoji”: “\U0001f37d”, “pts”: 2},
+“trash”:   {“name”: “Vynes musor”,         “emoji”: “\U0001f5d1”, “pts”: 2},
+“shoes”:   {“name”: “Ubral obuv”,          “emoji”: “\U0001f45f”, “pts”: 1},
+“toys”:    {“name”: “Ubral igrushki”,      “emoji”: “\U0001f9f8”, “pts”: 2, “max_per_day”: 2},
+“general”: {“name”: “Generalnaya uborka”,  “emoji”: “\U0001f9f9”, “pts”: 5},
 }
 
 DATA_FILE = “scores.json”
@@ -54,51 +54,42 @@ return data.get(“users”, {}).get(str(user_id))
 
 def scores_text(scores):
 loser_id = get_loser(scores)
+medals = [”\U0001f947”, “\U0001f948”, “\U0001f949”]
 lines = []
 for i, pid in enumerate(sorted(PEOPLE.keys(), key=lambda p: scores[p], reverse=True)):
 p = PEOPLE[pid]
-medal = [“🥇”, “🥈”, “🥉”][i]
-cinema = “ 🎬” if pid == loser_id else “”
-lines.append(f”{medal} {p[‘emoji’]} {p[‘name’]}: {scores[pid]} бал.{cinema}”)
-lines.append(f”\n🎬 В кино ведёт: *{PEOPLE[loser_id][‘name’]}*”)
+cinema = “ \U0001f3ac” if pid == loser_id else “”
+lines.append(medals[i] + “ “ + p[“emoji”] + “ “ + p[“name”] + “: “ + str(scores[pid]) + “ bal.” + cinema)
+lines.append(”\n\U0001f3ac V kino vedet: *” + PEOPLE[loser_id][“name”] + “*”)
 return “\n”.join(lines)
 
 def tasks_keyboard():
 keyboard = []
 for tid, t in TASKS.items():
-keyboard.append([InlineKeyboardButton(
-f”{t[‘emoji’]} {t[‘name’]} (+{t[‘pts’]} бал)”,
-callback_data=f”done_{tid}”
-)])
-keyboard.append([InlineKeyboardButton(“🏆 Счёт”, callback_data=“show_scores”),
-InlineKeyboardButton(“📜 История”, callback_data=“show_history”)])
+label = t[“emoji”] + “ “ + t[“name”] + “ (+” + str(t[“pts”]) + “ bal)”
+keyboard.append([InlineKeyboardButton(label, callback_data=“done_” + tid)])
+keyboard.append([
+InlineKeyboardButton(”\U0001f3c6 Schet”, callback_data=“show_scores”),
+InlineKeyboardButton(”\U0001f4dc Istoriya”, callback_data=“show_history”)
+])
 return InlineKeyboardMarkup(keyboard)
-
-# ─── /start — регистрация прямо в группе ─────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_id = str(update.effective_user.id)
 data = load_data()
-
-```
-if user_id in data.get("users", {}):
-    pid = data["users"][user_id]
-    p = PEOPLE[pid]
-    await update.message.reply_text(
-        f"{p['emoji']} *{p['name']}*, выбери задачу:",
-        parse_mode="Markdown",
-        reply_markup=tasks_keyboard()
-    )
-    return ConversationHandler.END
-
-keyboard = [[InlineKeyboardButton(f"{p['emoji']} {p['name']}", callback_data=f"reg_{k}")]
-            for k, p in PEOPLE.items()]
+if user_id in data.get(“users”, {}):
+pid = data[“users”][user_id]
+p = PEOPLE[pid]
 await update.message.reply_text(
-    "👋 Привет! Кто ты?",
-    reply_markup=InlineKeyboardMarkup(keyboard)
+p[“emoji”] + “ *” + p[“name”] + “*, vyberi zadachu:”,
+parse_mode=“Markdown”,
+reply_markup=tasks_keyboard()
 )
+return ConversationHandler.END
+keyboard = [[InlineKeyboardButton(p[“emoji”] + “ “ + p[“name”], callback_data=“reg_” + k)]
+for k, p in PEOPLE.items()]
+await update.message.reply_text(“Privet! Kto ty?”, reply_markup=InlineKeyboardMarkup(keyboard))
 return CHOOSE_NAME
-```
 
 async def choose_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
 query = update.callback_query
@@ -112,13 +103,11 @@ data[“users”][user_id] = pid
 save_data(data)
 p = PEOPLE[pid]
 await query.message.reply_text(
-f”✅ {p[‘emoji’]} *{p[‘name’]}*, ты зарегистрирован(а)!\n\nВыбери задачу:”,
+“\U00002705 “ + p[“emoji”] + “ *” + p[“name”] + “*, ty zaregistrirovan!\n\nVyberi zadachu:”,
 parse_mode=“Markdown”,
 reply_markup=tasks_keyboard()
 )
 return ConversationHandler.END
-
-# ─── Кнопки ───────────────────────────────────────────────────────────────────
 
 async def button_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 query = update.callback_query
@@ -130,224 +119,137 @@ data = load_data()
 ```
 if data_cb == "show_scores":
     await query.message.reply_text(
-        f"🏆 *Счёт за месяц:*\n\n{scores_text(data['scores'])}",
+        "\U0001f3c6 *Schet za mesyac:*\n\n" + scores_text(data["scores"]),
         parse_mode="Markdown"
     )
-
 elif data_cb == "show_history":
     history = data.get("history", [])
     if not history:
-        await query.message.reply_text("📜 История пока пуста.")
+        await query.message.reply_text("Historia poka pusta.")
         return
-    lines = ["📜 *Последние 10 действий:*\n"]
+    lines = ["\U0001f4dc *Poslednie 10:*\n"]
     for entry in reversed(history[-10:]):
-        lines.append(f"• {entry}")
+        lines.append("- " + entry)
     await query.message.reply_text("\n".join(lines), parse_mode="Markdown")
-
 elif data_cb == "show_tasks":
-    await query.message.reply_text("📋 Выбери задачу:", reply_markup=tasks_keyboard())
-
+    await query.message.reply_text("Vyberi zadachu:", reply_markup=tasks_keyboard())
 elif data_cb.startswith("done_"):
     tid = data_cb.replace("done_", "")
     task = TASKS.get(tid)
     if not task:
         return
-
     pid = get_pid(user_id, data)
     if not pid:
-        await query.message.reply_text("Сначала напиши /start и выбери своё имя.")
+        await query.message.reply_text("Snachala napishi /start i vyberi imya.")
         return
-
     today = datetime.now().strftime("%Y-%m-%d")
     max_per_day = task.get("max_per_day", 1)
-    count_key = f"{tid}_{user_id}_{today}"
+    count_key = tid + "_" + user_id + "_" + today
     done_today = data.get("today_count", {}).get(count_key, 0)
-
     if done_today >= max_per_day:
-        limit_msg = f"{max_per_day} раза" if max_per_day == 2 else "1 раз"
-        await query.message.reply_text(
-            f"⛔ Уже выполнено сегодня (максимум {limit_msg})."
-        )
+        await query.message.reply_text("\U000026d4 Uzhe vypolneno segodnya (max " + str(max_per_day) + "x).")
         return
-
-    # Сохраняем ожидание фото
     if "pending" not in data:
         data["pending"] = {}
     data["pending"][user_id] = tid
     save_data(data)
-
     p = PEOPLE[pid]
     await query.message.reply_text(
-        f"📸 {p['emoji']} *{p['name']}*, отправь фото — докажи что *{task['name']}* выполнено!",
+        "\U0001f4f8 " + p["emoji"] + " *" + p["name"] + "*, otprav foto — dokazhi chto *" + task["name"] + "* vypolneno!",
         parse_mode="Markdown"
     )
 ```
 
-# ─── Получение фото прямо в группе ───────────────────────────────────────────
-
 async def photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
 user_id = str(update.effective_user.id)
 data = load_data()
-
-```
-tid = data.get("pending", {}).get(user_id)
+tid = data.get(“pending”, {}).get(user_id)
 if not tid:
-    return
-
+return
 pid = get_pid(user_id, data)
 if not pid:
-    return
-
+return
 task = TASKS.get(tid)
-today = datetime.now().strftime("%Y-%m-%d")
-max_per_day = task.get("max_per_day", 1)
-count_key = f"{tid}_{user_id}_{today}"
-today_count = data.get("today_count", {})
+today = datetime.now().strftime(”%Y-%m-%d”)
+max_per_day = task.get(“max_per_day”, 1)
+count_key = tid + “*” + user_id + “*” + today
+today_count = data.get(“today_count”, {})
 done_today = today_count.get(count_key, 0)
-
 if done_today >= max_per_day:
-    await update.message.reply_text("⛔ Эта задача уже выполнена сегодня.")
-    data["pending"].pop(user_id, None)
-    save_data(data)
-    return
-
-# Начисляем баллы
-data["scores"][pid] += task["pts"]
-today_count[count_key] = done_today + 1
-data["today_count"] = today_count
-data["pending"].pop(user_id, None)
-
-p = PEOPLE[pid]
-now_str = datetime.now().strftime("%d.%m %H:%M")
-entry = f"{task['emoji']} {p['name']} — {task['name']} +{task['pts']} бал ({now_str})"
-data["history"].append(entry)
+await update.message.reply_text(”\U000026d4 Eta zadacha uzhe vypolnena segodnya.”)
+data[“pending”].pop(user_id, None)
 save_data(data)
-
-scores = data["scores"]
+return
+data[“scores”][pid] += task[“pts”]
+today_count[count_key] = done_today + 1
+data[“today_count”] = today_count
+data[“pending”].pop(user_id, None)
+p = PEOPLE[pid]
+now_str = datetime.now().strftime(”%d.%m %H:%M”)
+entry = task[“emoji”] + “ “ + p[“name”] + “ — “ + task[“name”] + “ +” + str(task[“pts”]) + “ bal (” + now_str + “)”
+data[“history”].append(entry)
+save_data(data)
+scores = data[“scores”]
 caption = (
-    f"✅ {p['emoji']} *{p['name']}* выполнил(а):\n"
-    f"{task['emoji']} {task['name']}\n"
-    f"💰 +{task['pts']} бал → итого: *{scores[pid]} бал.*\n\n"
-    f"🏆 *Счёт:*\n{scores_text(scores)}"
+“\U00002705 “ + p[“emoji”] + “ *” + p[“name”] + “* vypolnil(a):\n”
++ task[“emoji”] + “ “ + task[“name”] + “\n”
++ “\U0001f4b0 +” + str(task[“pts”]) + “ bal — itogo: *” + str(scores[pid]) + “ bal.*\n\n”
++ “\U0001f3c6 *Schet:*\n” + scores_text(scores)
 )
-
 photo = update.message.photo[-1].file_id
 keyboard = InlineKeyboardMarkup([[
-    InlineKeyboardButton("📋 Задачи", callback_data="show_tasks"),
-    InlineKeyboardButton("🏆 Счёт", callback_data="show_scores")
+InlineKeyboardButton(”\U0001f4cb Zadachi”, callback_data=“show_tasks”),
+InlineKeyboardButton(”\U0001f3c6 Schet”, callback_data=“show_scores”)
 ]])
-
-await update.message.reply_photo(
-    photo=photo,
-    caption=caption,
-    parse_mode="Markdown",
-    reply_markup=keyboard
-)
-```
-
-# ─── Еженедельное напоминание ─────────────────────────────────────────────────
+await update.message.reply_photo(photo=photo, caption=caption, parse_mode=“Markdown”, reply_markup=keyboard)
 
 async def weekly_reminder(context: ContextTypes.DEFAULT_TYPE):
 data = load_data()
-text = (
-f”📅 *Не забываем убираться!*\n\n”
-f”🏆 Текущий счёт:\n{scores_text(data[‘scores’])}\n\n”
-f”Кто меньше убирается — ведёт всех в кино 🎬”
-)
-await context.bot.send_message(
-chat_id=context.job.chat_id,
-text=text,
-parse_mode=“Markdown”
-)
-
-# ─── Авто-сброс 1-го числа ────────────────────────────────────────────────────
+text = “\U0001f514 *Ne zabyvaem ubiratsya!*\n\n\U0001f3c6 Tekushchiy schet:\n” + scores_text(data[“scores”]) + “\n\nKto menshe — vedet v kino \U0001f3ac”
+await context.bot.send_message(chat_id=context.job.chat_id, text=text, parse_mode=“Markdown”)
 
 async def monthly_reset(context: ContextTypes.DEFAULT_TYPE):
 data = load_data()
 scores = data[“scores”]
 loser_id = get_loser(scores)
 loser = PEOPLE[loser_id]
-
-```
 text = (
-    f"🎉 *Месяц закончился! Итоги:*\n\n"
-    f"{scores_text(scores)}\n\n"
-    f"🎬 {loser['emoji']} *{loser['name']}* ведёт всех в кино!\n\n"
-    f"Счёт сброшен. Новый месяц — новые шансы! 💪"
+“\U0001f389 *Mesyac zakonchilsya!*\n\n”
++ scores_text(scores) + “\n\n”
++ “\U0001f3ac “ + loser[“emoji”] + “ *” + loser[“name”] + “* vedet vsekh v kino!\n\n”
++ “Schet sbrosen. Novyy mesyac \U0001f4aa”
 )
-await context.bot.send_message(
-    chat_id=context.job.chat_id,
-    text=text,
-    parse_mode="Markdown"
-)
-
-data["scores"] = {"ilyas": 0, "azhar": 0, "karina": 0}
-data["history"] = []
-data["today_count"] = {}
+await context.bot.send_message(chat_id=context.job.chat_id, text=text, parse_mode=“Markdown”)
+data[“scores”] = {“ilyas”: 0, “azhar”: 0, “karina”: 0}
+data[“history”] = []
+data[“today_count”] = {}
 save_data(data)
-```
-
-# ─── /setup — команда для настройки напоминаний в группе ─────────────────────
 
 async def setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
 chat_id = update.effective_chat.id
-job_queue = context.job_queue
-
-```
-# Удаляем старые задачи если есть
-current_jobs = job_queue.get_jobs_by_name("weekly") + job_queue.get_jobs_by_name("monthly")
-for job in current_jobs:
-    job.schedule_removal()
-
-# Воскресенье 10:00
-job_queue.run_daily(
-    weekly_reminder,
-    time=time(10, 0),
-    days=(6,),
-    chat_id=chat_id,
-    name="weekly"
-)
-
-# 1-е число каждого месяца 00:01
-job_queue.run_monthly(
-    monthly_reset,
-    when=time(0, 1),
-    day=1,
-    chat_id=chat_id,
-    name="monthly"
-)
-
-await update.message.reply_text(
-    "✅ Готово!\n"
-    "🔔 Напоминание каждое воскресенье в 10:00\n"
-    "🔄 Сброс счёта 1-го числа каждого месяца"
-)
-```
-
-# ─── Запуск ───────────────────────────────────────────────────────────────────
+jq = context.job_queue
+for job in jq.get_jobs_by_name(“weekly”) + jq.get_jobs_by_name(“monthly”):
+job.schedule_removal()
+jq.run_daily(weekly_reminder, time=time(10, 0), days=(6,), chat_id=chat_id, name=“weekly”)
+jq.run_monthly(monthly_reset, when=time(0, 1), day=1, chat_id=chat_id, name=“monthly”)
+await update.message.reply_text(”\U00002705 Gotovo!\n\U0001f514 Napominanie kazhdoe voskresenye v 10:00\n\U0001f504 Sbros 1-go chisla”)
 
 def main():
 token = os.environ.get(“BOT_TOKEN”)
 if not token:
-raise ValueError(“Нет BOT_TOKEN!”)
-
-```
+raise ValueError(“NET BOT_TOKEN!”)
 app = Application.builder().token(token).build()
-
 conv = ConversationHandler(
-    entry_points=[CommandHandler("start", start)],
-    states={CHOOSE_NAME: [CallbackQueryHandler(choose_name, pattern="^reg_")]},
-    fallbacks=[],
+entry_points=[CommandHandler(“start”, start)],
+states={CHOOSE_NAME: [CallbackQueryHandler(choose_name, pattern=”^reg_”)]},
+fallbacks=[],
 )
-
 app.add_handler(conv)
-app.add_handler(CommandHandler("setup", setup))
+app.add_handler(CommandHandler(“setup”, setup))
 app.add_handler(CallbackQueryHandler(button_handler))
 app.add_handler(MessageHandler(filters.PHOTO, photo_received))
-
-logger.info("Бот запущен!")
+logger.info(“Bot zapushchen!”)
 app.run_polling(drop_pending_updates=True)
-```
 
 if **name** == “**main**”:
 main()
