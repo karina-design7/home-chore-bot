@@ -1,7 +1,7 @@
 import os
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, time
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
 Application, CommandHandler, CallbackQueryHandler,
@@ -20,18 +20,15 @@ PEOPLE = {
 }
 
 TASKS = {
-“kitchen”: {“name”: “Помыл(а) кухню”,      “emoji”: “🍳”, “pts”: 3},
-“dishes”:  {“name”: “Помыл(а) посуду”,      “emoji”: “🍽”, “pts”: 2},
-“trash”:   {“name”: “Вынес(ла) мусор”,      “emoji”: “🗑”, “pts”: 2},
-“shoes”:   {“name”: “Убрал(а) обувь”,       “emoji”: “👟”, “pts”: 1},
-“toys”:    {“name”: “Убрал(а) игрушки”,     “emoji”: “🧸”, “pts”: 2, “max_per_day”: 2},
-“general”: {“name”: “Генеральная уборка”,   “emoji”: “🧹”, “pts”: 5},
+“kitchen”: {“name”: “Помыл(а) кухню”,    “emoji”: “🍳”, “pts”: 3},
+“dishes”:  {“name”: “Помыл(а) посуду”,    “emoji”: “🍽”, “pts”: 2},
+“trash”:   {“name”: “Вынес(ла) мусор”,    “emoji”: “🗑”, “pts”: 2},
+“shoes”:   {“name”: “Убрал(а) обувь”,     “emoji”: “👟”, “pts”: 1},
+“toys”:    {“name”: “Убрал(а) игрушки”,   “emoji”: “🧸”, “pts”: 2, “max_per_day”: 2},
+“general”: {“name”: “Генеральная уборка”, “emoji”: “🧹”, “pts”: 5},
 }
 
 DATA_FILE = “scores.json”
-GROUP_CHAT_ID = int(os.environ.get(“GROUP_CHAT_ID”, “0”))
-
-# ─── Хранилище ────────────────────────────────────────────────────────────────
 
 def load_data():
 if os.path.exists(DATA_FILE):
@@ -41,7 +38,8 @@ return {
 “scores”: {“ilyas”: 0, “azhar”: 0, “karina”: 0},
 “history”: [],
 “today_count”: {},
-“users”: {}
+“users”: {},
+“pending”: {}
 }
 
 def save_data(data):
@@ -72,26 +70,22 @@ keyboard.append([InlineKeyboardButton(
 f”{t[‘emoji’]} {t[‘name’]} (+{t[‘pts’]} бал)”,
 callback_data=f”done_{tid}”
 )])
-keyboard.append([InlineKeyboardButton(“🏆 Счёт”, callback_data=“show_scores”)])
-keyboard.append([InlineKeyboardButton(“📜 История”, callback_data=“show_history”)])
+keyboard.append([InlineKeyboardButton(“🏆 Счёт”, callback_data=“show_scores”),
+InlineKeyboardButton(“📜 История”, callback_data=“show_history”)])
 return InlineKeyboardMarkup(keyboard)
 
-# ─── /start ───────────────────────────────────────────────────────────────────
+# ─── /start — регистрация прямо в группе ─────────────────────────────────────
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-# Игнорируем если это группа
-if update.effective_chat.type != “private”:
-return ConversationHandler.END
-
-```
 user_id = str(update.effective_user.id)
 data = load_data()
 
+```
 if user_id in data.get("users", {}):
     pid = data["users"][user_id]
     p = PEOPLE[pid]
     await update.message.reply_text(
-        f"Привет, {p['emoji']} *{p['name']}*! Выбери задачу:",
+        f"{p['emoji']} *{p['name']}*, выбери задачу:",
         parse_mode="Markdown",
         reply_markup=tasks_keyboard()
     )
@@ -151,10 +145,7 @@ elif data_cb == "show_history":
     await query.message.reply_text("\n".join(lines), parse_mode="Markdown")
 
 elif data_cb == "show_tasks":
-    await query.message.reply_text(
-        "📋 Выбери задачу:",
-        reply_markup=tasks_keyboard()
-    )
+    await query.message.reply_text("📋 Выбери задачу:", reply_markup=tasks_keyboard())
 
 elif data_cb.startswith("done_"):
     tid = data_cb.replace("done_", "")
@@ -170,43 +161,44 @@ elif data_cb.startswith("done_"):
     today = datetime.now().strftime("%Y-%m-%d")
     max_per_day = task.get("max_per_day", 1)
     count_key = f"{tid}_{user_id}_{today}"
-    today_count = data.get("today_count", {})
-    done_today = today_count.get(count_key, 0)
+    done_today = data.get("today_count", {}).get(count_key, 0)
 
     if done_today >= max_per_day:
         limit_msg = f"{max_per_day} раза" if max_per_day == 2 else "1 раз"
-        await query.message.reply_text(f"⛔ Эта задача уже выполнена сегодня (максимум {limit_msg}).")
+        await query.message.reply_text(
+            f"⛔ Уже выполнено сегодня (максимум {limit_msg})."
+        )
         return
 
     # Сохраняем ожидание фото
-    context.user_data["pending_task"] = tid
-    context.user_data["pending_pid"] = pid
+    if "pending" not in data:
+        data["pending"] = {}
+    data["pending"][user_id] = tid
+    save_data(data)
+
+    p = PEOPLE[pid]
     await query.message.reply_text(
-        f"📸 Отправь фото — докажи что *{task['name']}* выполнено!",
+        f"📸 {p['emoji']} *{p['name']}*, отправь фото — докажи что *{task['name']}* выполнено!",
         parse_mode="Markdown"
     )
 ```
 
-# ─── Получение фото ───────────────────────────────────────────────────────────
+# ─── Получение фото прямо в группе ───────────────────────────────────────────
 
 async def photo_received(update: Update, context: ContextTypes.DEFAULT_TYPE):
-if update.effective_chat.type != “private”:
-return
+user_id = str(update.effective_user.id)
+data = load_data()
 
 ```
-user_id = str(update.effective_user.id)
-tid = context.user_data.get("pending_task")
-pid = context.user_data.get("pending_pid")
+tid = data.get("pending", {}).get(user_id)
+if not tid:
+    return
 
-if not tid or not pid:
-    await update.message.reply_text(
-        "Сначала выбери задачу 👇",
-        reply_markup=tasks_keyboard()
-    )
+pid = get_pid(user_id, data)
+if not pid:
     return
 
 task = TASKS.get(tid)
-data = load_data()
 today = datetime.now().strftime("%Y-%m-%d")
 max_per_day = task.get("max_per_day", 1)
 count_key = f"{tid}_{user_id}_{today}"
@@ -215,13 +207,16 @@ done_today = today_count.get(count_key, 0)
 
 if done_today >= max_per_day:
     await update.message.reply_text("⛔ Эта задача уже выполнена сегодня.")
-    context.user_data.clear()
+    data["pending"].pop(user_id, None)
+    save_data(data)
     return
 
 # Начисляем баллы
 data["scores"][pid] += task["pts"]
 today_count[count_key] = done_today + 1
 data["today_count"] = today_count
+data["pending"].pop(user_id, None)
+
 p = PEOPLE[pid]
 now_str = datetime.now().strftime("%d.%m %H:%M")
 entry = f"{task['emoji']} {p['name']} — {task['name']} +{task['pts']} бал ({now_str})"
@@ -229,8 +224,6 @@ data["history"].append(entry)
 save_data(data)
 
 scores = data["scores"]
-loser_id = get_loser(scores)
-
 caption = (
     f"✅ {p['emoji']} *{p['name']}* выполнил(а):\n"
     f"{task['emoji']} {task['name']}\n"
@@ -244,64 +237,91 @@ keyboard = InlineKeyboardMarkup([[
     InlineKeyboardButton("🏆 Счёт", callback_data="show_scores")
 ]])
 
-# Личный ответ
 await update.message.reply_photo(
     photo=photo,
-    caption=f"✅ Засчитано! +{task['pts']} бал.",
+    caption=caption,
+    parse_mode="Markdown",
     reply_markup=keyboard
 )
-
-# Публикуем в группу
-if GROUP_CHAT_ID:
-    await context.bot.send_photo(
-        chat_id=GROUP_CHAT_ID,
-        photo=photo,
-        caption=caption,
-        parse_mode="Markdown"
-    )
-
-context.user_data.clear()
 ```
 
 # ─── Еженедельное напоминание ─────────────────────────────────────────────────
 
 async def weekly_reminder(context: ContextTypes.DEFAULT_TYPE):
-if not GROUP_CHAT_ID:
-return
 data = load_data()
-scores = data[“scores”]
 text = (
-f”📅 *Напоминание — не забываем убираться!*\n\n”
-f”🏆 Текущий счёт:\n{scores_text(scores)}\n\n”
-f”Кто меньше всех убирается — ведёт всех в кино 🎬”
+f”📅 *Не забываем убираться!*\n\n”
+f”🏆 Текущий счёт:\n{scores_text(data[‘scores’])}\n\n”
+f”Кто меньше убирается — ведёт всех в кино 🎬”
 )
-await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text, parse_mode=“Markdown”)
+await context.bot.send_message(
+chat_id=context.job.chat_id,
+text=text,
+parse_mode=“Markdown”
+)
 
-# ─── Авто-сброс в начале месяца ──────────────────────────────────────────────
+# ─── Авто-сброс 1-го числа ────────────────────────────────────────────────────
 
 async def monthly_reset(context: ContextTypes.DEFAULT_TYPE):
-if not GROUP_CHAT_ID:
-return
 data = load_data()
 scores = data[“scores”]
 loser_id = get_loser(scores)
 loser = PEOPLE[loser_id]
 
 ```
-# Объявляем итоги
 text = (
     f"🎉 *Месяц закончился! Итоги:*\n\n"
     f"{scores_text(scores)}\n\n"
     f"🎬 {loser['emoji']} *{loser['name']}* ведёт всех в кино!\n\n"
     f"Счёт сброшен. Новый месяц — новые шансы! 💪"
 )
-await context.bot.send_message(chat_id=GROUP_CHAT_ID, text=text, parse_mode="Markdown")
+await context.bot.send_message(
+    chat_id=context.job.chat_id,
+    text=text,
+    parse_mode="Markdown"
+)
 
-# Сбрасываем
 data["scores"] = {"ilyas": 0, "azhar": 0, "karina": 0}
 data["history"] = []
 data["today_count"] = {}
 save_data(data)
+```
+
+# ─── /setup — команда для настройки напоминаний в группе ─────────────────────
+
+async def setup(update: Update, context: ContextTypes.DEFAULT_TYPE):
+chat_id = update.effective_chat.id
+job_queue = context.job_queue
+
+```
+# Удаляем старые задачи если есть
+current_jobs = job_queue.get_jobs_by_name("weekly") + job_queue.get_jobs_by_name("monthly")
+for job in current_jobs:
+    job.schedule_removal()
+
+# Воскресенье 10:00
+job_queue.run_daily(
+    weekly_reminder,
+    time=time(10, 0),
+    days=(6,),
+    chat_id=chat_id,
+    name="weekly"
+)
+
+# 1-е число каждого месяца 00:01
+job_queue.run_monthly(
+    monthly_reset,
+    when=time(0, 1),
+    day=1,
+    chat_id=chat_id,
+    name="monthly"
+)
+
+await update.message.reply_text(
+    "✅ Готово!\n"
+    "🔔 Напоминание каждое воскресенье в 10:00\n"
+    "🔄 Сброс счёта 1-го числа каждого месяца"
+)
 ```
 
 # ─── Запуск ───────────────────────────────────────────────────────────────────
@@ -321,22 +341,9 @@ conv = ConversationHandler(
 )
 
 app.add_handler(conv)
+app.add_handler(CommandHandler("setup", setup))
 app.add_handler(CallbackQueryHandler(button_handler))
-app.add_handler(MessageHandler(filters.PHOTO & filters.ChatType.PRIVATE, photo_received))
-
-# Напоминание каждое воскресенье в 10:00
-app.job_queue.run_daily(
-    weekly_reminder,
-    time=datetime.strptime("10:00", "%H:%M").time(),
-    days=(6,)  # 6 = воскресенье
-)
-
-# Сброс 1-го числа каждого месяца в 00:01
-app.job_queue.run_monthly(
-    monthly_reset,
-    when=datetime.strptime("00:01", "%H:%M").time(),
-    day=1
-)
+app.add_handler(MessageHandler(filters.PHOTO, photo_received))
 
 logger.info("Бот запущен!")
 app.run_polling(drop_pending_updates=True)
